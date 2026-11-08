@@ -135,6 +135,22 @@ def plot_best_acc(runs, out_dir):
 
 # ---------------------------------------------------------------- 汇总表
 
+def compute_flops_if_missing(name, data):
+    """历史结果里 FLOPs 缺失时，现场构建同款模型补算（无需重训）。"""
+    if data.get("flops_G"):
+        return data["flops_G"]
+    try:
+        import torch
+        from thop import profile
+        from models import build_model
+        net = build_model(name).eval()
+        dummy = torch.randn(1, 3, 32, 32)
+        flops, _ = profile(net, inputs=(dummy,), verbose=False)
+        return round(flops / 1e9, 3)
+    except Exception:
+        return None
+
+
 def write_summary(runs, out_dir):
     rows = sorted(runs.items(), key=lambda kv: kv[1]["best_acc"],
                   reverse=True)
@@ -145,7 +161,7 @@ def write_summary(runs, out_dir):
         "|---|---|---|---|---|---|",
     ]
     for name, d in rows:
-        flops = d.get("flops_G")
+        flops = compute_flops_if_missing(name, d)
         lines.append(
             f"| {name} | {d['best_acc']:.2f} | {d.get('params_M', '-')} | "
             f"{flops if flops else '-'} | "

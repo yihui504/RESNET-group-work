@@ -100,13 +100,16 @@ def evaluate(model, loader, criterion, device):
 
 
 def count_flops(model):
-    """用 thop 估算 FLOPs；没安装则返回 None（不影响其他指标）。"""
+    """用 thop 估算 FLOPs；没安装或统计失败则返回 None（不影响其他指标）。"""
     try:
         from thop import profile
-        dummy = torch.randn(1, 3, 32, 32)
+        # 关键：dummy 输入必须和模型在同一个设备上（模型可能已在 GPU）
+        device = next(model.parameters()).device
+        dummy = torch.randn(1, 3, 32, 32, device=device)
         flops, _ = profile(model, inputs=(dummy,), verbose=False)
         return flops / 1e9   # 单位：GFLOPs
-    except Exception:
+    except Exception as e:
+        print(f"[提示] FLOPs 统计失败：{e}")
         return None
 
 

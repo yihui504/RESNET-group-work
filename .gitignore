@@ -1,0 +1,15 @@
+# Python
+__pycache__/
+*.pyc
+.venv/
+
+# 实验产物（体积大，不入库；结果汇总在 figures/summary.md 与报告中体现）
+data/
+results/
+figures/
+
+# 编辑器 / 系统
+.vscode/
+.trae/
+.screenshots/
+.DS_Store

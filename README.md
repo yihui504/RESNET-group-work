@@ -48,7 +48,7 @@ python plot.py
 | `resnet20` / `resnet32` / `resnet44` / `resnet56` / `resnet110` | ResNet-v1（CVPR 2016） | 0.27M~1.7M |
 | `preact20` / `preact32` | Pre-act ResNet-v2（ECCV 2016） | 同深度 v1 略少 |
 | `wrn28_2` / `wrn28_10` | Wide ResNet（`wrn28_2` 是调试用小模型） | 1.5M / 36.5M |
-| `resnext29_16x4d` | ResNeXt-29 16×4d（CVPR 2017） | ~6.8M |
+| `resnext29_16x4d` | ResNeXt-29 16×4d（CVPR 2017） | 1.35M |
 | `seresnet20` / `seresnet32` | SE-ResNet（CVPR 2018 消融） | 比 v1 略多 |
 
 ## 4. 统一训练配置（公平对比的关键，别改）

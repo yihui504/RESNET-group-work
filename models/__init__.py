@@ -27,6 +27,7 @@ MODEL_REGISTRY = {
     # ---- 历史版本 2：Pre-act ResNet-v2（ECCV 2016）----
     "preact20": lambda: PreActResNet(depth=20),
     "preact32": lambda: PreActResNet(depth=32),
+    "preact110": lambda: PreActResNet(depth=110),  # 深网：验证 v2 的深网优势
     # ---- 历史版本 3：WRN-28-10（2016）----
     "wrn28_2": lambda: WideResNet(depth=28, widen_factor=2),   # 小模型：冒烟测试用
     "wrn28_10": lambda: WideResNet(depth=28, widen_factor=10),
@@ -35,6 +36,7 @@ MODEL_REGISTRY = {
     # ---- 消融：SE-ResNet（CVPR 2018 的 SE 模块插到 v1 上）----
     "seresnet20": lambda: SEResNetV1(depth=20),
     "seresnet32": lambda: SEResNetV1(depth=32),
+    "seresnet110": lambda: SEResNetV1(depth=110),  # SE 论文同款设置（ResNet-110）
 }
 
 

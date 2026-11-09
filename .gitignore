@@ -7,6 +7,9 @@ __pycache__/
 data/
 results/
 figures/
+logs/
+*.pt
+*.pth
 
 # 编辑器 / 系统
 .vscode/

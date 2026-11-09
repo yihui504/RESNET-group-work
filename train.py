@@ -128,7 +128,9 @@ def main():
     parser.add_argument("--out-dir", type=str, default="./results")
     parser.add_argument("--num-workers", type=int, default=2)
     parser.add_argument("--save-ckpt", action="store_true",
-                        help="保存最佳模型权重（可选，默认只存训练历史）")
+                        help="额外保存最佳模型权重（可选，默认只存训练历史）")
+    parser.add_argument("--resume", action="store_true",
+                        help="若存在上次的中断存档（*_last.pt），自动从断点继续训练")
     args = parser.parse_args()
 
     set_seed(args.seed)
@@ -160,11 +162,28 @@ def main():
     # 4. 训练循环
     history = []
     best_acc = 0.0
+    start_epoch = 1
     t_start = time.time()
     result_path = os.path.join(
         args.out_dir, f"{args.model}_e{args.epochs}.json")
+    # 断点存档：每轮覆盖保存（模型+优化器+调度器+进度），进程被杀后可 --resume 续训
+    last_ckpt = os.path.join(
+        args.out_dir, f"{args.model}_e{args.epochs}_last.pt")
 
-    for epoch in range(1, args.epochs + 1):
+    if args.resume and os.path.exists(last_ckpt):
+        ck = torch.load(last_ckpt, map_location=device, weights_only=False)
+        model.load_state_dict(ck["model"])
+        optimizer.load_state_dict(ck["optimizer"])
+        scheduler.load_state_dict(ck["scheduler"])
+        history = ck["history"]
+        best_acc = ck["best_acc"]
+        start_epoch = ck["epoch"] + 1
+        # 累计此前的训练时长，保证 total_time_hour 连续
+        t_start = time.time() - ck.get("elapsed_sec", 0)
+        print(f"[续训] 从 epoch {start_epoch} 继续（已训 {ck['epoch']} 轮，"
+              f"best {best_acc:.2f}%）")
+
+    for epoch in range(start_epoch, args.epochs + 1):
         t0 = time.time()
         train_loss, train_acc = train_one_epoch(
             model, train_loader, criterion, optimizer, device)
@@ -188,7 +207,7 @@ def main():
             "epoch_time_sec": round(epoch_time, 1),
         })
 
-        # 每个 epoch 都保存一次 JSON（即使中途断电也不丢历史）
+        # 每个 epoch 都保存一次 JSON + 断点存档（即使中途断电也不丢历史、可续训）
         with open(result_path, "w", encoding="utf-8") as f:
             json.dump({
                 "model": args.model,
@@ -199,6 +218,15 @@ def main():
                 "total_time_hour": round((time.time() - t_start) / 3600, 3),
                 "history": history,
             }, f, ensure_ascii=False, indent=2)
+        torch.save({
+            "epoch": epoch,
+            "best_acc": best_acc,
+            "history": history,
+            "elapsed_sec": time.time() - t_start,
+            "model": model.state_dict(),
+            "optimizer": optimizer.state_dict(),
+            "scheduler": scheduler.state_dict(),
+        }, last_ckpt)
 
         if epoch % 10 == 0 or epoch == 1 or epoch == args.epochs:
             print(f"[epoch {epoch:>3}/{args.epochs}] "

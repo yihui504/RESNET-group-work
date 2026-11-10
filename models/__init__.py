@@ -18,6 +18,8 @@ MODEL_REGISTRY = {
     # ---- 对照组（不是 ResNet 版本，只用来复现"退化问题"）----
     "plain20": lambda: PlainNet(depth=20),
     "plain32": lambda: PlainNet(depth=32),
+    "plain56": lambda: PlainNet(depth=56),   # 深 plain：复现"加深反而变差"
+    "plain110": lambda: PlainNet(depth=110), # 更深的 plain：退化现象最明显
     # ---- 历史版本 1：ResNet-v1（CVPR 2016）----
     "resnet20": lambda: ResNetV1(depth=20),
     "resnet32": lambda: ResNetV1(depth=32),

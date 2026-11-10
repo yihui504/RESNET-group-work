@@ -33,14 +33,16 @@ class PlainNet(nn.Module):
     def __init__(self, depth: int = 20, num_classes: int = 10):
         super().__init__()
         assert (depth - 2) % 6 == 0, "depth 需满足 (depth-2) % 6 == 0，例如 20/32/44"
-        n = (depth - 2) // 6  # 每个 stage 的卷积层数
+        n = (depth - 2) // 6  # 每个 stage 的残差块数（= 卷积层数的一半）
 
-        layers = [conv_bn_relu(3, 16, stride=1)]            # 入口卷积
-        layers += [conv_bn_relu(16, 16) for _ in range(n - 1)]  # stage1：16 通道
-        layers += [conv_bn_relu(16, 32, stride=2)]          # stage2 第一层：下采样
-        layers += [conv_bn_relu(32, 32) for _ in range(n - 1)]
-        layers += [conv_bn_relu(32, 64, stride=2)]          # stage3 第一层：下采样
-        layers += [conv_bn_relu(64, 64) for _ in range(n - 1)]
+        layers = [conv_bn_relu(3, 16, stride=1)]                # 入口卷积
+        # 每个 stage 的卷积层数 = 2n（与 ResNet 的 n 个残差块 × 2 层卷积对齐，
+        # 保证与同名 ResNet 深度、通道完全一致，只差捷径连接）
+        layers += [conv_bn_relu(16, 16) for _ in range(2 * n)]  # stage1：16 通道
+        layers += [conv_bn_relu(16, 32, stride=2)]              # stage2 第一层：下采样
+        layers += [conv_bn_relu(32, 32) for _ in range(2 * n - 1)]
+        layers += [conv_bn_relu(32, 64, stride=2)]              # stage3 第一层：下采样
+        layers += [conv_bn_relu(64, 64) for _ in range(2 * n - 1)]
 
         self.features = nn.Sequential(*layers)
         self.pool = nn.AdaptiveAvgPool2d(1)  # 全局平均池化 -> [B, 64, 1, 1]

@@ -29,7 +29,8 @@ MODEL_REGISTRY = {
     # ---- 历史版本 2：Pre-act ResNet-v2（ECCV 2016）----
     "preact20": lambda: PreActResNet(depth=20),
     "preact32": lambda: PreActResNet(depth=32),
-    "preact110": lambda: PreActResNet(depth=110),  # 深网：验证 v2 的深网优势
+    # "preact110": lambda: PreActResNet(depth=110),  # 暂缓：补实验只保留 plain110 + seresnet110
+    # 需要恢复时取消注释即可（实现本身完好，冒烟测试曾通过）
     # ---- 历史版本 3：WRN-28-10（2016）----
     "wrn28_2": lambda: WideResNet(depth=28, widen_factor=2),   # 小模型：冒烟测试用
     "wrn28_10": lambda: WideResNet(depth=28, widen_factor=10),

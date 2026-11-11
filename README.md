@@ -44,7 +44,7 @@ python plot.py
 
 | 命令行名 | 说明 | 参数量参考 |
 |---|---|---|
-| `plain20` / `plain32` | 无捷径对照网（复现退化问题） | 0.27M / 0.30M |
+| `plain20` / `plain32` / `plain56` / `plain110` | 无捷径对照网（复现退化问题，与同名 ResNet 同深度同参数量） | 0.27M / 0.46M / 0.85M / 1.73M |
 | `resnet20` / `resnet32` / `resnet44` / `resnet56` / `resnet110` | ResNet-v1（CVPR 2016） | 0.27M~1.7M |
 | `preact20` / `preact32` | Pre-act ResNet-v2（ECCV 2016） | 同深度 v1 略少 |
 | `wrn28_2` / `wrn28_10` | Wide ResNet（`wrn28_2` 是调试用小模型） | 1.5M / 36.5M |

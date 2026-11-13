@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>L1 · 2015 年的困境：网络越深越笨</title>
+<link rel="stylesheet" href="../assets/course.css">
+</head>
+<body>
+
+<header class="lesson-head">
+  <div class="kicker">Lesson 0001 · 对应 PPT 板块：背景（成员 A 主讲）</div>
+  <h1>2015 年的困境：网络越深，反而越笨</h1>
+  <div class="meta">预计 15 分钟 · 前置知识：无（零基础起步）· 完成后请做底部三道题</div>
+</header>
+
+<h2>一、三分钟补齐前置知识</h2>
+<p>要看懂 ResNet 的动机，只需要三个概念。每个记一个类比就够：</p>
+
+<div class="concept"><span class="term">卷积层（convolution）</span>：一个小小的"特征探测器"（比如 3×3 的窗口）在图像上滑动，每停一处就做加权求和，输出一个数。不同探测器分别对边缘、颜色、纹理敏感。<b>类比：一群各看一方面的小 inspector 扫描照片。</b></p></div>
+
+<div class="concept"><span class="term">批归一化 BN（Batch Normalization）</span>：把每层输出的数值拉回稳定的范围（减均值、除方差），防止越算越离谱。<b>类比：流水线每道工序后都把零件尺寸校回标准范围。</b>记住一个伏笔：<span class="hl">BN 已经解决了传统的梯度消失，但深层网络还是训不好</span>——这正是 2015 年的谜题。</p></div>
+
+<div class="concept"><span class="term">SGD 训练（随机梯度下降）</span>：反复"看一批图 → 算出错了多少 → 微调所有探测器权重"。学习率 0.1 是每次微调的步长。<b>类比：下山时每步都朝当前最陡的下坡方向挪一小步。</b></p></div>
+
+<div class="note">CNN 就是这三样东西的堆叠：卷积提特征 → BN 稳数值 → ReLU 留正值，重复几十层，最后汇总判断是猫是狗。"深度学习"的"深"就是层数多。</div>
+
+<h2>二、当时的逻辑与谜题</h2>
+<p>2012 年 AlexNet（8 层）夺冠 ImageNet 后，业界路径很清晰：<b>更深 = 更好</b>。VGG 堆到 19 层继续涨分。那堆到 56 层、110 层岂不是要起飞？</p>
+<p>结果 2015 年何恺明团队发现：<b>把网络纯粹加深（不加任何捷径），训练误差反而上升</b>。注意——是<b>训练误差</b>，模型连<b>作业本（训练集）</b>都抄不好，不是考试（测试集）发挥失常。这个现象叫<span class="hl">退化（degradation）</span>。</p>
+
+<h3>我们亲手复现的数据（这是你 PPT 上最硬的一张表）</h3>
+<table>
+  <tr><th>网络深度</th><th class="num">Plain（无捷径）</th><th class="num">ResNet（有捷径）</th><th class="num">捷径带来的增益</th></tr>
+  <tr><td>20 层</td><td class="num">91.94%</td><td class="num">92.94%</td><td class="num">+1.00</td></tr>
+  <tr><td>32 层</td><td class="num">90.43% ↓</td><td class="num">93.82%</td><td class="num">+3.39</td></tr>
+  <tr><td>56 层</td><td class="num">86.39% ↓↓</td><td class="num">94.14%</td><td class="num">+7.75</td></tr>
+  <tr><td>110 层</td><td class="num bad">11.62%（崩溃）</td><td class="num good">94.60%</td><td class="num">+82.98</td></tr>
+</table>
+<p>左列一路跳水，右列一路爬升——这张"剪刀差"就是 ResNet 全部故事的起点。两条线<b>结构完全相同、参数量几乎一致</b>（plain-110 1.728M vs resnet-110 1.731M），唯一区别是右列每两层多了一条加回去的线（下一课讲）。</p>
+
+<h2>三、必须分清的两个"变差"（答辩第一考点）</h2>
+<table>
+  <tr><th></th><th>过拟合 overfitting</th><th>退化 degradation</th></tr>
+  <tr><td><b>现象</b></td><td>训练误差低，测试误差高</td><td>训练误差<b>本身</b>升高</td></tr>
+  <tr><td><b>本质</b></td><td>泛化问题：背题了</td><td>优化问题：学不动</td></tr>
+  <tr><td><b>我们的证据</b></td><td>—</td><td>plain-110 训练精度 10%、训练 loss 恒为 2.30（十类瞎猜的理论值）</td></tr>
+</table>
+<div class="note">为什么"理论上不该发生"？因为 56 层网络的解空间<b>包含</b> 20 层网络的解——多出来的层学成"什么都不做"（恒等映射）就至少不输。但 SGD 偏偏拟合不出恒等映射。<b>让非线性层逼近恒等很难，这是优化的死结</b>——ResNet 的解法正是把"学恒等"变成"把 F 学成零"，下一课展开。</div>
+
+<h2>四、自测（不看书作答）</h2>
+
+<div class="quiz" data-quiz>
+  <div class="q-head">CHECK 1 · 概念辨析</div>
+  <div class="q-body">
+    <div class="q-text">训练误差随网络加深而上升、测试误差同步上升，这是？</div>
+    <div class="opts">
+      <button data-ok="0">典型的过拟合现象，需要更强正则</button>
+      <button data-ok="1">退化问题，属于优化困难而非泛化</button>
+      <button data-ok="0">学习率过大导致损失发散成 NaN</button>
+    </div>
+    <div class="feedback"></div>
+  </div>
+</div>
+
+<div class="quiz" data-quiz>
+  <div class="q-head">CHECK 2 · 读数据</div>
+  <div class="q-body">
+    <div class="q-text">plain-110 的训练 loss 全程恒在 2.30（ln10），说明该网络？</div>
+    <div class="opts">
+      <button data-ok="0">完美拟合了训练集的所有样本</button>
+      <button data-ok="0">出现了典型的梯度爆炸数值溢出</button>
+      <button data-ok="1">停留在十类均匀猜测，从未学会学习</button>
+    </div>
+    <div class="feedback"></div>
+  </div>
+</div>
+
+<div class="quiz" data-quiz>
+  <div class="q-head">CHECK 3 · 深层理解</div>
+  <div class="q-body">
+    <div class="q-text">"56 层 plain 网误差高于 20 层"为何反直觉？因为深网络理论上？</div>
+    <div class="opts">
+      <button data-ok="1">包含浅层解，学成恒等就不该更差</button>
+      <button data-ok="0">参数更多所以必然拥有更低泛化误差</button>
+      <button data-ok="0">深度增加会自动消除梯度消失的问题</button>
+    </div>
+    <div class="feedback"></div>
+  </div>
+</div>
+
+<h2>五、本课交付与延伸</h2>
+<p><b>你现在应该能脱口而出的三句话</b>：① 退化是训练误差升高、不是过拟合；② 我们复现了剪刀差（91.94→11.62 vs 92.94→94.60）；③ 理论上深包含浅的解，坏在 SGD 拟合不出恒等映射。</p>
+<p><b>主资源</b>：<a href="https://arxiv.org/abs/1512.03385">He et al. 2015 §1 与 Fig.4</a>（读引言即可，5 分钟，看原图 4 与我们表格的对应）。<br>
+<b>术语卡</b>：<a href="../reference/glossary.html">glossary 第一、二组</a>。</p>
+
+<footer class="lesson-foot">
+  有任何不懂的地方，<b>直接问你的 AI 老师</b>（把这段课贴给它说"这里没懂"就行）。<br>
+  <a class="nav-next" href="./0002-residual-block.html">下一课 L2 · 残差块解剖：一行公式拯救深度学习 →</a>
+</footer>
+
+<script>
+document.querySelectorAll('[data-quiz]').forEach(function (q) {
+  var fb = q.querySelector('.feedback');
+  var explains = q.querySelectorAll('.opts button');
+  var map = {};
+  explains.forEach(function (b) { map[b.getAttribute('data-ok')] = b; });
+  var okBtn = map['1'];
+  var texts = {
+    ok: ['对。训练与测试误差同升=优化困难，正是 He et al. 定义 degradation 的方式。',
+         '对。2.30 = −ln(1/10)，即对十类输出均匀概率——网络 200 轮从未脱离瞎猜平台。',
+         '对。多余层学成恒等映射即可保底不输，但 SGD 拟合恒等很难——这就是动机。'],
+    no: ['不对。过拟合的特征是训练误差低、只有测试误差高。',
+         '不对。发散会看到 NaN 或巨大损失，2.30 恰是均匀猜测的理论值。',
+         '不对。深度与梯度消失没有自动消除关系（BN 才缓解幅值问题）。']
+  };
+  var qi = document.querySelectorAll('[data-quiz]');
+  var idx = Array.prototype.indexOf.call(qi, q);
+  explains.forEach(function (b) {
+    b.addEventListener('click', function () {
+      explains.forEach(function (x) { x.classList.remove('correct', 'wrong'); });
+      if (b === okBtn) {
+        b.classList.add('correct');
+        fb.className = 'feedback show ok';
+        fb.textContent = texts.ok[idx % texts.ok.length];
+      } else {
+        b.classList.add('wrong'); okBtn.classList.add('correct');
+        fb.className = 'feedback show no';
+        fb.textContent = texts.no[idx % texts.no.length];
+      }
+    });
+  });
+});
+</script>
+
+</body>
+</html>

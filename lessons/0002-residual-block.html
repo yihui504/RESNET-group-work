@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>L2 · 残差块解剖：一行公式如何改变一切</title>
+<link rel="stylesheet" href="../assets/course.css">
+</head>
+<body>
+
+<header class="lesson-head">
+  <div class="kicker">Lesson 0002 · 对应 PPT 板块：方法（成员 A/B 主讲）</div>
+  <h1>残差块解剖：一行公式如何改变一切</h1>
+  <div class="meta">预计 18 分钟 · 前置：L1 · 本课教你把 y=F(x)+x 讲出三个层次</div>
+</header>
+
+<h2>一、核心公式与它的三层含义</h2>
+<div class="math">y = F(<span class="var">x</span>, W) + <span class="var">x</span></div>
+<p>左边是要学的目标映射，右边拆成两部分：堆叠层只负责学<b>残差 F(x) = H(x) − x</b>，然后<b>原样加上输入 x</b>。汇报时按三层递进讲：</p>
+
+<div class="concept"><span class="term">层次一（动机层）</span>：L1 说过，让非线性层<b>逼近恒等映射</b>很难。现在恒等只需 F(x)=0——把权重推向零即可，优化器极其擅长这件事。<b>"学增量"永远比"学全部"容易。</b></div>
+
+<div class="concept"><span class="term">层次二（信号层）</span>：前向看，x 沿捷径原样直达任意深层，深网络最差也是 x 的传递；反向看，求导时 ∂y/∂x = 1 + ∂F/∂x，那个<b>常数 1</b> 保证梯度可以无衰减地流回任意浅层。<span class="hl">加法是唯一同时满足"前向无损 + 反向无损"的融合方式</span>——这就是为什么不能换成乘法或拼接后乱接。</div>
+
+<div class="concept"><span class="term">层次三（工程层）</span>：恒等捷径<b>零参数、零 FLOPs、不改变输出尺寸</b>。免费的午餐，这是它能在 2015 年一夜之间被所有实验室采用的原因。</div>
+
+<h2>二、BasicBlock：最简残差块长什么样</h2>
+<p>我们 CIFAR 实验用的 BasicBlock（对应 <code>models/resnet_v1.py</code>），结构就四步：</p>
+
+<div class="diagram">
+  <div class="dg-box">输入 x（16 通道, 32×32）</div>
+  <div class="dg-arrow">↓ &nbsp;主分支 F(x)</div>
+  <div class="dg-wrap">
+    <div class="dg-branch">
+      <div class="dg-box">3×3 卷积 → BN → ReLU</div>
+      <div class="dg-arrow">↓</div>
+      <div class="dg-box">3×3 卷积 → BN</div>
+    </div>
+    <div style="font-size:2rem; color:var(--soft); align-self:center;">⇢</div>
+    <div class="dg-branch">
+      <div class="dg-label">捷径（同形状时）</div>
+      <div class="dg-box" style="border-style:dashed;">恒等 x</div>
+    </div>
+  </div>
+  <div class="dg-op">⊕</div>
+  <div class="dg-box">ReLU( F(x) + x )</div>
+</div>
+
+<div class="note"><b>捷径什么时候不能是恒等？</b>stage 过渡处（通道 16→32、特征图 32→16）F(x) 与 x 形状不同，捷径换成一个 stride-2 的 1×1 卷积把 x 投影过来。全网络只有 3 处——这解释了 plain-110 与 resnet-110 的参数差只有 0.003M。</div>
+
+<h2>三、v1 → v2：把"加法"变得更干净</h2>
+<p>2016 年同团队追问：<b>捷径必须是纯恒等吗？块内顺序重要吗？</b>他们系统消融后发现——ReLU/BN 放在加法<b>之后</b>会污染直传信号。于是有了 pre-activation（v2）：</p>
+
+<table>
+  <tr><th></th><th>v1（post-act，2015）</th><th>v2（pre-act，2016）</th></tr>
+  <tr><td><b>块内顺序</b></td><td>conv→BN→ReLU … 加法后再 ReLU</td><td>BN→ReLU <b>前置</b>到卷积前，加法后<b>无任何操作</b></td></tr>
+  <tr><td><b>信号通路</b></td><td>加法结果被 ReLU 裁剪（负值归零）</td><td>任意两层之间无障碍直传</td></tr>
+  <tr><td><b>收益区间</b></td><td>通用</td><td><b>极深网</b>（164/1001 层）显著，浅网不明显</td></tr>
+  <tr><td><b>我们的实测</b></td><td>resnet-32 <b>93.82%</b></td><td>preact-32 92.96%（−0.86pt）</td></tr>
+</table>
+
+<p>这个 −0.86pt 不是坏消息，是<b>知道适用边界</b>的证据：v2 解决的是超深网信号传播，32 层不在收益区间。<span class="hl">答辩被问"preact 为什么没涨"时，这句就是标准答案</span>（详见 QA 卡 Q11）。</p>
+
+<h2>四、自测</h2>
+
+<div class="quiz" data-quiz>
+  <div class="q-head">CHECK 1 · 公式理解</div>
+  <div class="q-body">
+    <div class="q-text">y = F(x) + x 中，恒等捷径对反向传播的关键贡献是？</div>
+    <div class="opts">
+      <button data-ok="0">把特征维度扩大一倍便于并行运算</button>
+      <button data-ok="1">导数含常数 1，梯度可无衰减直传浅层</button>
+      <button data-ok="0">消除了对批归一化层的全部依赖</button>
+    </div>
+    <div class="feedback"></div>
+  </div>
+</div>
+
+<div class="quiz" data-quiz>
+  <div class="q-head">CHECK 2 · 结构细节</div>
+  <div class="q-body">
+    <div class="q-text">stage 过渡处（16→32 通道）捷径需要 1×1 卷积，原因是？</div>
+    <div class="opts">
+      <button data-ok="0">增加参数量以提升网络整体容量</button>
+      <button data-ok="0">防止梯度在加法节点处发生数值溢出</button>
+      <button data-ok="1">F(x) 与 x 形状不同，需投影对齐再相加</button>
+    </div>
+    <div class="feedback"></div>
+  </div>
+</div>
+
+<div class="quiz" data-quiz>
+  <div class="q-head">CHECK 3 · v1 vs v2</div>
+  <div class="q-body">
+    <div class="q-text">pre-act (v2) 在我们 32 层实验没有提升，最合理的解释是？</div>
+    <div class="opts">
+      <button data-ok="1">其收益场景在超深网，32 层本不在区间</button>
+      <button data-ok="0">实现代码存在尚未被发现的重要缺陷</button>
+      <button data-ok="0">pre-act 结构只在 ImageNet 数据上生效</button>
+    </div>
+    <div class="feedback"></div>
+  </div>
+</div>
+
+<h2>五、本课交付</h2>
+<p><b>汇报时的讲法示范</b>（对着 PPT 块结构图说）："这个块只做一件事——让这几层卷积去学'增量'，再把输入原样加回来。要变成恒等映射，只需把增量学成零；梯度回传时有那个常数 1 兜底，一百多层也堵不住。"</p>
+<p><b>主资源</b>：<a href="https://arxiv.org/abs/1512.03385">ResNet 论文 §4.1 残差块定义</a> + <a href="https://arxiv.org/abs/1603.05027">Identity Mappings §1–2</a>（各读 5 分钟）。<br>
+<b>术语卡</b>：<a href="../reference/glossary.html">glossary 第二组全部</a>。</p>
+
+<footer class="lesson-foot">
+  卡壳就问 AI 老师。本课的三个自测对应 QA 卡 Q3/Q4/Q11，是方法部分的高频追问。<br>
+  <a class="nav-next" href="../reference/qa-defense.html">→ 先去刷一遍 QA 攻防卡，再等 L3（演进轴与总榜）生成</a>
+</footer>
+
+<script>
+document.querySelectorAll('[data-quiz]').forEach(function (q) {
+  var fb = q.querySelector('.feedback');
+  var btns = q.querySelectorAll('.opts button');
+  var okBtn = q.querySelector('[data-ok="1"]');
+  var okMsg = ['对。∂y/∂x = 1 + ∂F/∂x，常数 1 让梯度沿捷径无衰减回传——这是深网可训的核心。',
+               '对。通道与尺寸都变了，恒等捷径无法直接相加，1×1/stride-2 负责形状对齐。',
+               '对。v2 的收益在 164/1001 层的信号传播，32 层浅网不在区间——知道边界比盲目堆技巧更重要。'];
+  var noMsg = ['不对。维度没变；关键在导数里那个常数 1。',
+               '不对。与溢出无关，纯粹是形状对齐问题。',
+               '不对。与数据集无关，是深度条件的问题；我们实现经参数量与冒烟测试验证。'];
+  var idx = Array.prototype.indexOf.call(document.querySelectorAll('[data-quiz]'), q);
+  btns.forEach(function (b) {
+    b.addEventListener('click', function () {
+      btns.forEach(function (x) { x.classList.remove('correct', 'wrong'); });
+      if (b === okBtn) {
+        b.classList.add('correct');
+        fb.className = 'feedback show ok'; fb.textContent = okMsg[idx % 3];
+      } else {
+        b.classList.add('wrong'); okBtn.classList.add('correct');
+        fb.className = 'feedback show no'; fb.textContent = noMsg[idx % 3];
+      }
+    });
+  });
+});
+</script>
+
+</body>
+</html>

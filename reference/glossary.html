@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>速查 · ResNet 汇报术语表</title>
+<link rel="stylesheet" href="../assets/course.css">
+<style>
+  dl.gloss { display: grid; grid-template-columns: 1fr; gap: 0; }
+  dl.gloss dt { font-family: var(--sans); font-weight: 700; color: var(--blue); margin-top: .9rem; font-size: .98rem; }
+  dl.gloss dt .en { color: var(--soft); font-weight: 400; font-size: .85rem; }
+  dl.gloss dd { margin: .15rem 0 0; font-size: .95rem; }
+</style>
+</head>
+<body>
+
+<header class="lesson-head">
+  <div class="kicker">Reference · 速查表</div>
+  <h1>ResNet 汇报术语表</h1>
+  <div class="meta">30 个术语 · 中英对照 · 答辩前过三遍 · <a href="../MISSION.md">课程使命</a></div>
+</header>
+
+<h2>一、基础概念（L1 前置，必须张口就来）</h2>
+<dl class="gloss">
+  <dt>卷积层<span class="en"> / convolutional layer</span></dt>
+  <dd>用一个小窗口（如 3×3）在图像上滑动做加权求和，提取局部特征（边缘、纹理）。窗口权重就是网络要学的参数。</dd>
+  <dt>卷积神经网络<span class="en"> / CNN</span></dt>
+  <dd>卷积层堆叠 + 激活函数 + 池化构成的网络，靠"局部连接 + 权值共享"处理图像，是 2012–2020 视觉任务的绝对主流。</dd>
+  <dt>批归一化<span class="en"> / Batch Normalization, BN</span></dt>
+  <dd>对每个 mini-batch 的特征做标准化（减均值除方差，再学一个缩放和偏移），稳定训练、允许较大学习率。<b>关键点：BN 已经缓解了传统梯度消失，但退化问题依然存在</b>——这是答辩必考点。</dd>
+  <dt>激活函数<span class="en"> / activation (ReLU)</span></dt>
+  <dd>引入非线性的函数。ReLU(x)=max(0,x)：负数归零、正数保留。</dd>
+  <dt>随机梯度下降<span class="en"> / SGD</span></dt>
+  <dd>用小批数据的梯度近似更新参数：w ← w − lr·g。本项目的 momentum=0.9 表示更新方向带上历史惯性。</dd>
+  <dt>学习率与余弦退火<span class="en"> / lr, cosine annealing</span></dt>
+  <dd>步长 lr 控制每步走多远；余弦退火让 lr 从 0.1 平滑降到 0——先快跑后精修。本项目统一 200 epoch。</dd>
+  <dt>过拟合<span class="en"> / overfitting</span></dt>
+  <dd>训练误差低但测试误差高——模型背下了训练集。与退化（训练误差也降不下去）方向相反，务必分清。</dd>
+</dl>
+
+<h2>二、ResNet 核心结构（L2，PPT 方法部分）</h2>
+<dl class="gloss">
+  <dt>退化问题<span class="en"> / degradation</span></dt>
+  <dd>plain 网络加深后<b>训练误差不降反升</b>的现象，不是过拟合而是优化困难。本项目实测：plain-20 91.94% → plain-110 11.62%。</dd>
+  <dt>恒等捷径<span class="en"> / identity shortcut, skip connection</span></dt>
+  <dd>把输入 x 直接加到输出：y = F(x) + x。零参数、零算力、处处可微，是 ResNet 的灵魂。</dd>
+  <dt>残差学习<span class="en"> / residual learning</span></dt>
+  <dd>让堆叠层只学"增量" F(x) = H(x) − x，而不是整体映射 H(x)。网络加深时把 F 推向零即得恒等映射，深网络不再"变差"。</dd>
+  <dt>基本块<span class="en"> / BasicBlock</span></dt>
+  <dd>两个 3×3 卷积构成的最简残差块，用于 ResNet-18/34 与本项目全部 CIFAR 版网络。</dd>
+  <dt>瓶颈块<span class="en"> / Bottleneck</span></dt>
+  <dd>1×1 降维 → 3×3 → 1×1 升维的三层块，用于 ResNet-50+ 与 ResNeXt，先压缩再计算省算力。</dd>
+  <dt>前激活<span class="en"> / pre-activation (ResNet-v2)</span></dt>
+  <dd>把 BN+ReLU 从卷积后挪到卷积前，加法后不再接激活，信号可在任意层间无障碍直传。收益主要在极深网络（164/1001 层）。</dd>
+  <dt>下采样<span class="en"> / downsampling, stride-2</span></dt>
+  <dd>特征图尺寸减半（32→16→8）、通道数翻倍。捷径跨尺寸时需 1×1 卷积（stride=2）对齐形状。</dd>
+  <dt>全局平均池化<span class="en"> / global average pooling</span></dt>
+  <dd>每个通道取空间平均，8×8×64 → 64 维向量，再接全连接出 10 类得分。</dd>
+</dl>
+
+<h2>三、演进轴线与变体（L3/L4，实验部分）</h2>
+<dl class="gloss">
+  <dt>加宽<span class="en"> / Wide ResNet, WRN</span></dt>
+  <dd>通道数乘宽度因子 k（16/32/64 → 160/320/640），浅而宽胜过深而窄。WRN-28-10 = 28 层、k=10、块内 dropout 0.3。</dd>
+  <dt>基数<span class="en"> / cardinality (ResNeXt)</span></dt>
+  <dd>深度、宽度之外的第三维：并行分支数 C（分组卷积）。ResNeXt-29 16×4d = 29 层、16 组、每组 4 通道。</dd>
+  <dt>通道注意力<span class="en"> / Squeeze-and-Excitation, SE</span></dt>
+  <dd>全局池化→两层小 FC→Sigmoid，为每个通道算 0~1 的权重再乘回去，"重要通道说话大声点"。即插即用，代价极小。</dd>
+  <dt>分组卷积<span class="en"> / grouped convolution</span></dt>
+  <dd>输入输出通道分成 C 组各自卷积、互不通信，FLOPs 降为 1/C。是基数的工程实现。</dd>
+  <dt>结构重参数化<span class="en"> / re-parameterization (RepVGG)</span></dt>
+  <dd>训练时多分支（含捷径）、推理时代数融合成单路——残差"训练用完即弃"。2021 后端侧主流。</dd>
+</dl>
+
+<h2>四、评估指标（报数字时的口径）</h2>
+<dl class="gloss">
+  <dt>Top-1 准确率<span class="en"> / top-1 accuracy</span></dt>
+  <dd>预测的最大概率类恰为正确的比例。本项目 CIFAR-10 全部报 best top-1（200 epoch 中的最佳测试精度）。</dd>
+  <dt>参数量<span class="en"> / params (M)</span></dt>
+  <dd>可学习权重总数（百万）。衡量模型大小。plain-110 1.728M ≈ resnet-110 1.731M 是"同深度同容量对照"的证据。</dd>
+  <dt>计算量<span class="en"> / FLOPs (G)</span></dt>
+  <dd>前向传播浮点运算数（十亿）。衡量推理成本。注意 FLOPs 低不等于速度快（内存访问也是瓶颈）。</dd>
+  <dt>训练误差 vs 测试误差<span class="en"> / train/test error</span></dt>
+  <dd>判断"退化 or 过拟合"的判据：训练误差升=退化（优化问题）；训练降测试升=过拟合（泛化问题）。</dd>
+  <dt>随机种子<span class="en"> / random seed</span></dt>
+  <dd>控制初始化与数据顺序的随机性。本项目单种子 seed=42，<1pt 差距只说"相当"不说"更优"。</dd>
+</dl>
+
+<h2>五、2025 视角关键词（L5，结论页弹药）</h2>
+<dl class="gloss">
+  <dt>ConvNeXt<span class="en"> (CVPR 2022)</span></dt>
+  <dd>把 Transformer 设计要素逐项移植回纯 CNN（大核、LN、反向瓶颈），反超 Swin——但宏观骨架仍是残差堆叠。</dd>
+  <dt>ViT / Swin<span class="en"> / Vision Transformer</span></dt>
+  <dd>图像切块当 token 输入 Transformer；每个 block 仍是"注意力+残差、FFN+残差"，残差骨架被继承。</dd>
+  <dt>VMamba / SSM<span class="en"> (NeurIPS 2024)</span></dt>
+  <dd>状态空间模型的视觉骨干，线性复杂度。论文原话：VSS 块"可视为带跳连的残差网络"。</dd>
+  <dt>DiT<span class="en"> / Diffusion Transformer (ICCV 2023)</span></dt>
+  <dd>扩散模型主干。adaLN-Zero 把残差分支零初始化，块初始为恒等映射——ResNet 思想在生成模型中延续。</dd>
+  <dt>ResNet Strikes Back<span class="en"> (2021)</span></dt>
+  <dd>仅换训练配方（Mixup/RandAugment/长程 cosine）把 ResNet-50 从 76.1% 拉到 80.4%——配方与结构同等重要。</dd>
+</dl>
+
+<footer class="lesson-foot">
+  配套课程：<a href="../lessons/0001-degradation.html">L1 退化问题</a> · <a href="../lessons/0002-residual-block.html">L2 残差块</a> ·
+  速查：<a href="qa-defense.html">答辩 QA 卡</a><br>
+  数字口径统一见 <a href="实验分析报告.md">docs/实验分析报告.md</a>；有疑问随时问你的 AI 老师。
+</footer>
+
+</body>
+</html>

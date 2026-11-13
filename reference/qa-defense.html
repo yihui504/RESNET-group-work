@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>速查 · 答辩 QA 攻防卡</title>
+<link rel="stylesheet" href="../assets/course.css">
+<style>
+  .lvl { font-size: .72rem; font-family: var(--sans); border-radius: 8px; padding: .05rem .5rem; margin-left: .4rem; }
+  .lvl.hi { background: #f9e9e7; color: var(--bad); border: 1px solid var(--bad); }
+  .lvl.mid { background: #f5edda; color: #8a6d1a; border: 1px solid #c9a95c; }
+  .card .follow { margin-top: .5rem; font-size: .88rem; color: var(--soft); border-top: 1px dashed var(--border); padding-top: .4rem; }
+</style>
+</head>
+<body>
+
+<header class="lesson-head">
+  <div class="kicker">Reference · 答辩速查</div>
+  <h1>答辩 QA 攻防卡（16 题）</h1>
+  <div class="meta">每题 = 30 秒标准答案 + 数据支撑 + 追问预案 · <span class="lvl hi">必考</span><span class="lvl mid">常考</span></div>
+</header>
+
+<h2>一、概念辨析（最容易被追问的地方）</h2>
+
+<div class="card"><h4>Q1 退化问题和过拟合有什么区别？<span class="lvl hi">必考</span></h4>
+<div class="ans">方向相反。过拟合是训练误差低、测试误差高（泛化问题）；退化是<b>训练误差本身</b>随深度上升（优化问题）。我们的证据：plain-110 训练精度只有 10%（随机水平）、训练 loss 恒为 2.30（= ln10），连训练集都拟合不了，谈不上过拟合。</div>
+<div class="data">plain 系列：训练精度 99.26%(20层) → 98.47% → 92.32% → 10.00%(110层)</div>
+<div class="follow">追问"怎么证明不是梯度消失"→ 见 Q2。</div></div>
+
+<div class="card"><h4>Q2 都有 BN 了，为什么还会训不动？这和梯度消失什么关系？<span class="lvl hi">必考</span></h4>
+<div class="ans">BN 把每层输入拉回稳定分布，传统梯度消失/爆炸确实被大幅缓解——但 ResNet 论文指出，<b>在 BN 存在的情况下</b>plain 深网依然退化，说明残差的是"优化困难"而非单纯的梯度幅值问题。理论对应 Balduzzi 2017 的<b>梯度破碎</b>：深层 plain 网梯度之间相关性指数衰减、呈白噪声状——不是梯度太小，而是梯度方向太乱，SGD 无法利用。捷径把衰减从指数级降为亚线性。</div>
+<div class="follow">追问"有没有直接证据"→ 诚实答：本项目未测梯度相关性，结论基于文献 + 我们的行为级证据（loss 恒 ln10）。</div></div>
+
+<div class="card"><h4>Q3 为什么用恒等捷径，而不是缩放或变换后的捷径？<span class="lvl mid">常考</span></h4>
+<div class="ans">恒等映射让信号无障碍直传：x 能原样到达任意深层（前向），梯度也能原样回传到任意浅层（反向）。ResNet-v2 论文系统消融过：捷径上一旦加操作（1×1、缩放、门控），深网性能立刻下降。工程上恒等捷径还<b>零参数、零算力</b>。</div>
+<div class="data">本实验 v1→v2 的顺序改造（同为"让加法更干净"的思想）即此论文方向</div></div>
+
+<div class="card"><h4>Q4 捷径上什么时候需要 1×1 卷积？<span class="lvl mid">常考</span></h4>
+<div class="ans">当 F(x) 与 x 形状不一致时——即 stage 过渡处（通道 16→32、尺寸 32×32→16×16）。1×1/stride-2 卷积把 x 投影到同形状再相加。同 stage 内部全部用纯恒等。代价：这些投影卷积正是 plain-110 与 resnet-110 的参数差（1.728M vs 1.731M）。</div></div>
+
+<h2>二、实验设计（方法论质疑的防线）</h2>
+
+<div class="card"><h4>Q5 你们只跑了一个种子，结果可信吗？<span class="lvl hi">必考</span></h4>
+<div class="ans">分层回答。大差距结论不受影响：退化剪刀差最大 83pt、WRN 领先 1.6pt，远超单种子噪声（CIFAR-10 上通常 ±0.3~0.5pt）。小差距我们<b>不做显著性主张</b>：ResNeXt vs ResNet-110 差 0.15pt、SE-32 差 0.21pt，报告中只表述为"相当/未见显著差异"。局限性一节已明确声明，这是单种子设计的边界而非疏忽。</div></div>
+
+<div class="card"><h4>Q6 为什么用 200 epoch + cosine，和原论文 164ep + 阶梯衰减不一样？<span class="lvl mid">常考</span></h4>
+<div class="ans">两个理由：① 公平——13 个模型必须同一配方，否则比较无意义；② 有依据——ResNet Strikes Back (2021) 证明长程 cosine + 现代技巧优于原配方，WRN 论文也是 200ep。代价我们也承认：与论文绝对数字不可直接比（表 3 列了偏差），其中 WRN-28-10 与论文几乎精确对齐（96.18% vs 96.0%），说明配置有效。</div></div>
+
+<div class="card"><h4>Q7 plain-110 崩到 11.6%，论文里没有崩，是你们实现有 bug 吗？<span class="lvl hi">必考（刁钻）</span></h4>
+<div class="ans">三层证据排除实现问题：① 参数量与 resnet-110 精确对齐（1.728M vs 1.731M，逐层同构）；② 浅层 plain（20/32/56）全部正常收敛且与论文趋势一致；③ 崩溃形态是 loss 恒为 ln10 的优化失败，不是 NaN 或报错。与论文的差异有明确解释：论文用阶梯衰减（先在较大 lr 训练较久后降），我们的 cosine 配方初始阶段等效 lr 更激进，110 层 plain 在无捷径时无法承受——<b>这本身是退化问题"优化困难"本质的极端展示</b>，报告 §7 已如实区分"我们的极端形态"与"论文的量化结果"。</div>
+<div class="follow">如果老师坚持要复现论文的 82%→ 可承诺补跑 plain-110 带 lr 预热的版本（诚实但不必现场做）。</div></div>
+
+<div class="card"><h4>Q8 训练时长数据为什么波动很大？<span class="lvl mid">常考</span></h4>
+<div class="ans">后台执行 + 断点续训 + GPU 共享，时长列仅作量级参考（如 plain-20 的 4.23h 包含了中断重跑）。精度指标不受影响：每个 epoch 的评估都在完整测试集上独立进行。报告 §7 已声明。</div></div>
+
+<h2>三、结果解读（数字背后的"为什么"）</h2>
+
+<div class="card"><h4>Q9 ResNeXt 没有超过 ResNet-110，和论文结论矛盾吗？<span class="lvl hi">必考</span></h4>
+<div class="ans">不矛盾，是设置差异。论文的 +1pt 来自 50 屍 bottleneck 的 ImageNet 设置；我们的是 29 层 CIFAR 版，每个 stage 仅 3 个 bottleneck，较浅。基数优势（并行分支的表示多样性）需要足够深度积累。诚实结论：本设置下基数与加深<b>效率相当</b>（94.45% vs 94.60%，参数还少 22%），0.15pt 在单种子噪声内。</div></div>
+
+<div class="card"><h4>Q10 SE 为什么 32 层没用、110 层有 +0.41pt？<span class="lvl mid">常考</span></h4>
+<div class="ans">通道注意力的前提是有足够通道可重标定。32 层网每 stage 只有 16/32/64 通道，SE 的瓶颈层（C/16）容量过小，学不出有意义的权重；110 层同结构但更深的网络梯度路径更长、特征更冗余，重标定才有收益。方向与 SE 论文一致（他们 ResNet-110 增益 +1.2pt，浅网更小），幅度小于论文，部分归因于配方与单种子。</div>
+<div class="data">se-resnet32 93.61 vs resnet32 93.82（−0.21）；se-resnet110 95.01 vs 94.60（+0.41）</div></div>
+
+<div class="card"><h4>Q11 preact-32 反而比 resnet-32 低 0.86pt，v2 是不是失败了？<span class="lvl mid">常考</span></h4>
+<div class="ans">不是。v2 论文的收益场景是 164/1001 层的极深网（信号传播 + 正则化），32 层本来就不在收益区间——这恰是"知道每个改进的适用边界"的体现。我们的表述限定为"在 32 层深度未观察到 pre-act 增益"，不做推广。可惜 preact-110 因时间预算未跑（如被追问，承认这是 limitation）。</div></div>
+
+<div class="card"><h4>Q12 WRN 参数是 ResNet-110 的 21 倍，只换 1.58pt，值得吗？<span class="lvl mid">常考</span></h4>
+<div class="ans">要看维度。同参数预算下确实不划算（1.7M 的 resnet-110 94.60% vs 36M 的 WRN 96.18%）；但 WRN 论文的核心主张是"宽网<b>训练更快收敛、并行度更高</b>"，且 96.18% 与论文 96.0% 精确对齐，验证了我们全链路的正确性。报告里我们把它表述为"上限最高但代价 20×"的三轴权衡，而非推荐配置。</div></div>
+
+<div class="card"><h4>Q13 FLOPs 差 20 倍但精度只差 1.6pt，是不是深度学习性价比很低？<span class="lvl mid">常考</span></h4>
+<div class="ans">这 1.6pt 在 CIFAR-10 接近饱和区的边际成本确实高——正是后续研究（ResNeXt 用基数换效率、2023 后 RepViT/FasterNet 追真实吞吐）的动机。我们数据同样支持"效率视角"：resnext 以 0.28G FLOPs 达到 94.45%，是 Pareto 前沿上的好点。</div></div>
+
+<h2>四、延伸与展望（展示视野）</h2>
+
+<div class="card"><h4>Q14 ResNet 都快十年了，现在还有什么用？<span class="lvl hi">必考（结題必问）</span></h4>
+<div class="ans">三个层次：① 骨架层面——2025 年的 SOTA（ConvNeXt V2、VMamba、DiT）宏观结构全部是 x+F(x)，残差是十年来唯一没被替换的组件；② 应用层面——Stable Diffusion 的 UNet 以 ResBlock 为基本单元，CLIP 至今保留 ResNet 系编码器；③ 学术层面——2025 年仍有正交残差更新、函数空间解释等理论新作。一句话：ResNet 作为"具体模型"被超越，作为"思想"无处不在。</div></div>
+
+<div class="card"><h4>Q15 为什么你们说残差是"被一切架构继承的默认骨架"，证据？<span class="lvl mid">常考</span></h4>
+<div class="ans">跨范式取证：卷积线 ConvNeXt 反向瓶颈块仍是残差；注意力线 ViT/Swin 每个 block 双残差；SSM 线 VMamba 论文原话"VSS 块可视为带跳连的残差网络"；生成线 DiT 的 adaLN-Zero 把残差分支零初始化（让块初始为恒等）。连"去残差"的 VanillaNet 也必须靠残差式训练才能收敛——反面证明其必要性。</div></div>
+
+<div class="card"><h4>Q16 如果给你们更多时间，下一步做什么？<span class="lvl mid">常考</span></h4>
+<div class="ans">优先级排序：① 关键比较补多种子（3 seeds× 重点 5 模型），把"相当"升级为统计结论；② 补 preact-110 验证 v2 深网优势；③ plain-110 加 lr warmup 复现论文的"可收敛退化"，让曲线对齐论文量级；④ 选做 ResNet Strikes Back 简化配方消融（Mixup+label smoothing），量化"配方 vs 结构"。</div></div>
+
+<footer class="lesson-foot">
+  建议用法：答辩前一晚 + 当天早上各过一遍；<span class="lvl hi">必考</span> 8 题做到脱口而出。<br>
+  配套：<a href="glossary.html">术语表</a> · <a href="../lessons/0001-degradation.html">L1</a> · <a href="../lessons/0002-residual-block.html">L2</a> ·
+  数据细节随时查 docs/实验分析报告.md，或直接问你的 AI 老师。
+</footer>
+
+</body>
+</html>
